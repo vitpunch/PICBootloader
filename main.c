@@ -59,13 +59,14 @@ void ReadSN(void)
 char TxtHalfByteToHalfByte(char halfByte)
 {
     //в допустимом ли диапазоне символ
-    if (halfByte<0x30 ||
+    if ((halfByte<0x30 ||
         halfByte>0x46 ||
         (halfByte>0x39 && halfByte <0x41))
+            && ParsingErroor==0)
     
     {
-        ParsingErroor = 0xFF;
-        return 0x01; // ошибка
+        ParsingErroor = 0xF0;
+        return 0x00; // ошибка
     }
     char ret;
     if (halfByte<0x3A)
@@ -80,15 +81,38 @@ char TxtByteToChar(uint8_t index)
 }
 void ParseTxtHexLineToByteBuffer(void)
 {
-//    if (LineBuffer[0]!=':')
-//        ParsingErroor=0xff;
     uint8_t index = 0;
-    while(index<21)
+    //uint8_t maxindex;
+    uint8_t checksum = 0;
+    while(index<21) //очищаем буфер
+    {
+        ParsedBuffer[index]=0;
+        index++;
+    }
+    if (LineBuffer[0]!=':' && ParsingErroor==0)
+        ParsingErroor=0xf1;
+    ParsedBuffer[0] = TxtByteToChar(1);//длина послания
+    if(ParsedBuffer[0]>0x10)
+    {
+        ParsingErroor=0xF5;
+        return;
+    }
+    index =1;
+    while(index<ParsedBuffer[0]+5) // парсим текст в байты
     {
         ParsedBuffer[index] = TxtByteToChar((index<<1)+1);
         index++;
     }
-    ParsedBuffer[21]=0x00;
+    index = 0;
+    while (index<ParsedBuffer[0]+5) //считаем кс
+    {
+        checksum+=ParsedBuffer[index];
+        index++;
+    }
+    SendByteToUART(checksum);
+    if(checksum!=0x00 && ParsingErroor==0)
+        ParsingErroor=0xf2;
+    //ParsedBuffer[21]=0x00;
 }
 void ParseHEXLine(void)
 {
@@ -96,6 +120,7 @@ void ParseHEXLine(void)
     ParsingErroor = 0;
     ParseTxtHexLineToByteBuffer();
     uint8_t index = 0;
+    SendByteToUART(ParsingErroor);
     while (index<22)
     {
         EUSART1_Write(ParsedBuffer[index++]);
