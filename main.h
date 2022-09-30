@@ -12,21 +12,12 @@
 #include <string.h>
 #include "Led.h"
 #include "UART.h"
+#include "parser.h"
+#include "mcc_generated_files/memory.h"
 
-void ParseTxtHexLineToByteBuffer(void);
-char TxtHalfByteToHalfByte(char halfByte);
-char TxtByteToChar(uint8_t index);
-char IsCorrectHEXLine(void);
 
-void ParseCommand(void);
-void ReadSN(void);
+
 void WriteFirmWare(void);
-void ParseHEXLine(void);
-
-char ParsingErroor;
-char ParsedBuffer[22];
-char LineBuffer[51];
-char FlashBuffer[82];
 
 #endif	/* MAIN_H */
 
