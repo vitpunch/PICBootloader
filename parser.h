@@ -17,8 +17,9 @@ void SendByteToUART(uint8_t);
 void ParseCommand(void);
 void ReadSN(void);
 void ParseHEXLine(void);
+void WriteHEXFile(void);
 
-char ParsingErroor;
+char ParsingError;
 char ParsedBuffer[22];
 char LineBuffer[51];
 char FlashBuffer[82];

@@ -15,10 +15,8 @@ void ParseCommand(void)
 {
     if (!strcmp(LineBuffer,"rSN"))
         ReadSN();
-    else if (!strcmp(LineBuffer,"write"))
-        WriteFirmWare();
-    else if (!strcmp(LineBuffer,"parse"))
-        ParseHEXLine();
+    else if (!strcmp(LineBuffer,"writeHEX"))
+        WriteHEXFile();
     else
         SendLineToUART("\r\nDon't understand\r\n");
 
@@ -42,10 +40,10 @@ char TxtHalfByteToHalfByte(char halfByte)
     if ((halfByte<0x30 ||
         halfByte>0x46 ||
         (halfByte>0x39 && halfByte <0x41))
-            && ParsingErroor==0)
+            && ParsingError==0)
     
     {
-        ParsingErroor = 0xF0;
+        ParsingError = 0xF0;
         return 0xFF;
     }
     char ret;
@@ -62,10 +60,6 @@ char TxtByteToChar(uint8_t index)
             TxtHalfByteToHalfByte(LineBuffer[index+1]);
 }
 
-void ParseTxtHexLineToByteBuffer(void)
-{
-    
-}
 
 void ParseHEXLine(void)
 //    строку из буфера строки парсит из формата HEX в байты в буфер HEX строки
@@ -73,7 +67,7 @@ void ParseHEXLine(void)
 {
 
     ReceiveLineFromUARTToBuffer();
-    ParsingErroor = 0;
+    ParsingError = 0;
     
     uint8_t index = 0;
     uint8_t checksum = 0;
@@ -84,12 +78,12 @@ void ParseHEXLine(void)
         index++;
     }
 //    проверяем первый символ длину послания
-    if (LineBuffer[0]!=':' && ParsingErroor==0)
-        ParsingErroor=0xf1;
+    if (LineBuffer[0]!=':' && ParsingError==0)
+        ParsingError=0xf1;
     ParsedBuffer[0] = TxtByteToChar(1);//длина послания
     if(ParsedBuffer[0]>0x10)
     {
-        ParsingErroor=0xF5;
+        ParsingError=0xF5;
         return;
     }
     index =1;
@@ -105,9 +99,70 @@ void ParseHEXLine(void)
         checksum+=ParsedBuffer[index];
         index++;
     }
-    if(checksum!=0x00 && ParsingErroor==0)
-        ParsingErroor=0xf2;
+    if(checksum!=0x00 && ParsingError==0)
+        ParsingError=0xf2;
 
-    SendByteToUART(ParsingErroor);
+    SendByteToUART(ParsingError);
 }
 
+void WriteHEXFile(void)
+{
+    // сначала стираем всю флэш память
+    for(uint32_t i = 0x1000; i < END_FLASH; i += ERASE_FLASH_BLOCKSIZE)
+    {
+        FLASH_EraseBlock(i);
+    }
+    uint32_t CurrenBlock = 0xFFFF;
+    uint32_t ParsedAdress;
+    char WriteBuffer [80];
+    
+    do
+    {
+
+        //считали строку
+        ParseHEXLine();
+
+        //проверить ошибки
+        if (ParsingError !=0)
+        {
+            SendLineToUART("\r\nError\r\n");
+            SendByteToUART(ParsingError);
+            break;
+        }
+        if (ParsedBuffer[0]==0)
+                ParsingError = 0xF0; //обнаружен конец файла
+        
+        ParsedAdress = (((uint32_t)ParsedBuffer[1]) << 8) | (uint32_t)ParsedBuffer[2];
+        
+        if (CurrenBlock == 0xFFFF)
+            CurrenBlock = ParsedAdress & 0xFFC0; //только при первой итерации
+        
+        if ((ParsedAdress & 0xFFC0) != CurrenBlock)
+        {
+            //записать текуущий блок
+            FLASH_WriteBlock(CurrenBlock, (uint8_t *)WriteBuffer);   
+            
+            //сдвинуть хвост
+            for (uint8_t i = 0; i<0x10; i++)
+            {
+                WriteBuffer[i] = WriteBuffer[i+WRITE_FLASH_BLOCKSIZE];
+            }
+            for (uint8_t i = 0x10; i< 80; i++)
+                WriteBuffer[i] = 0x0;
+            CurrenBlock += WRITE_FLASH_BLOCKSIZE;
+        }
+        // проверили в текущем ли блоке она
+        
+        //TODO записали блок. В буфере остался хвост. если новая строка не из следующего блока - записать хвост и поменять 
+        
+        for (uint8_t j = 0; j < ParsedBuffer[0]; j++)
+        {
+            WriteBuffer[(ParsedAdress & 0x3F) + j] = ParsedBuffer[j + 4];
+        }
+    }
+    while(ParsingError != 0xF0); //до конца файла
+    FLASH_WriteBlock(CurrenBlock, (uint8_t *)WriteBuffer);
+    SendLineToUART("\r\nSuccess!\r\n");
+}
+
+//добавить проверку начального адреса в прошивке
