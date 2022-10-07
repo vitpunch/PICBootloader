@@ -8,6 +8,8 @@
 #ifndef MAIN_H
 #define	MAIN_H
 
+#define WORK_MODE 0x3FB
+
 #include <xc.h>
 #include <string.h>
 #include "Led.h"
@@ -16,8 +18,7 @@
 #include "mcc_generated_files/memory.h"
 
 
-
-void WriteFirmWare(void);
-
+void StartBootloader(void);
+bool BootloadRequired(void);
 #endif	/* MAIN_H */
 

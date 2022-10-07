@@ -49,7 +49,7 @@
 
 void SYSTEM_Initialize(void)
 {
-    LedInitialize();
+
     PIN_MANAGER_Initialize();
     OSCILLATOR_Initialize();
     EUSART1_Initialize();

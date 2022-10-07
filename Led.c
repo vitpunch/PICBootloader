@@ -37,9 +37,9 @@ void ResetMiddleLed(void)
 }
 void ToggleCornerLed(void)
 {
-    CORNER_LED ^= 1;
+    CORNER_LED ^= 0xFF;
 }
 void ToggleMiddleLed(void)
 {
-    MIDDLE_LED ^= 1;
+    MIDDLE_LED ^= 0xFF;
 }

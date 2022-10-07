@@ -15,10 +15,10 @@ void ParseCommand(void)
 {
     if (!strcmp(LineBuffer,"rSN"))
         ReadSN();
-    else if (!strcmp(LineBuffer,"writeHEX"))
+    else if (!strcmp(LineBuffer,"wH"))
         WriteHEXFile();
     else
-        SendLineToUART("\r\nDon't understand\r\n");
+        SendLineToUART("\r\n?\r\n");
 
 }
 
@@ -107,25 +107,28 @@ void ParseHEXLine(void)
 
 void WriteHEXFile(void)
 {
+    uint32_t CurrenBlock = 0xFFFF;
+    uint32_t ParsedAdress;
+    char WriteBuffer [80];
+    for (uint8_t i=0;i <81;i++)
+        WriteBuffer[i]= 0xFF;
+    
     // сначала стираем всю флэш память
     for(uint32_t i = 0x1000; i < END_FLASH; i += ERASE_FLASH_BLOCKSIZE)
     {
         FLASH_EraseBlock(i);
     }
-    uint32_t CurrenBlock = 0xFFFF;
-    uint32_t ParsedAdress;
-    char WriteBuffer [80];
+
     
     do
     {
-
         //считали строку
         ParseHEXLine();
 
         //проверить ошибки
         if (ParsingError !=0)
         {
-            SendLineToUART("\r\nError\r\n");
+            SendLineToUART("\r\nEr\r\n");
             SendByteToUART(ParsingError);
             break;
         }
@@ -133,13 +136,24 @@ void WriteHEXFile(void)
                 ParsingError = 0xF0; //обнаружен конец файла
         
         ParsedAdress = (((uint32_t)ParsedBuffer[1]) << 8) | (uint32_t)ParsedBuffer[2];
+        if (ParsedAdress < 0x1000)
+        {
+            ParsingError = 0xF1; //адрес в диапазоне бутлоадера
+            break;
+        }
         
         if (CurrenBlock == 0xFFFF)
+        {
             CurrenBlock = ParsedAdress & 0xFFC0; //только при первой итерации
+
+        }
+
         
         if ((ParsedAdress & 0xFFC0) != CurrenBlock)
         {
             //записать текуущий блок
+            SendByteToUART((uint8_t)(CurrenBlock >> 8));
+            SendByteToUART((uint8_t)(CurrenBlock & 0x00FF));
             FLASH_WriteBlock(CurrenBlock, (uint8_t *)WriteBuffer);   
             
             //сдвинуть хвост
@@ -147,9 +161,17 @@ void WriteHEXFile(void)
             {
                 WriteBuffer[i] = WriteBuffer[i+WRITE_FLASH_BLOCKSIZE];
             }
-            for (uint8_t i = 0x10; i< 80; i++)
-                WriteBuffer[i] = 0x0;
+            for (uint8_t i = 0x10; i< 81; i++)
+                WriteBuffer[i] = 0xFF;
             CurrenBlock += WRITE_FLASH_BLOCKSIZE;
+            if (((ParsedAdress & 0xFFC0) != CurrenBlock) || (ParsingError ==0xF0))
+            {
+                FLASH_WriteBlock(CurrenBlock, (uint8_t *)WriteBuffer);  
+
+                CurrenBlock = ParsedAdress & 0xFFC0;//0xFFFF;
+                for (uint8_t i=0;i <81;i++)
+                    WriteBuffer[i]= 0xFF;
+            }
         }
         // проверили в текущем ли блоке она
         
@@ -157,12 +179,14 @@ void WriteHEXFile(void)
         
         for (uint8_t j = 0; j < ParsedBuffer[0]; j++)
         {
-            WriteBuffer[(ParsedAdress & 0x3F) + j] = ParsedBuffer[j + 4];
+            WriteBuffer[(uint8_t)(ParsedAdress & 0x3F) + j] = ParsedBuffer[j + 4];
         }
     }
     while(ParsingError != 0xF0); //до конца файла
+    SendByteToUART((uint8_t)(CurrenBlock >> 8));
+    SendByteToUART((uint8_t)(CurrenBlock & 0x00FF));
     FLASH_WriteBlock(CurrenBlock, (uint8_t *)WriteBuffer);
-    SendLineToUART("\r\nSuccess!\r\n");
+    SendLineToUART("\r\nSc\r\n");
 }
 
 //добавить проверку начального адреса в прошивке
